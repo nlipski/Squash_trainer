@@ -1,70 +1,83 @@
 #include "Wire.h"
 #include "I2Cdev.h"
-#include "MPU6050.h"
-
+#include "MPU6050_6Axis_MotionApps20.h"
 #include <ESP8266WiFi.h>
-//#include <PubSubClient.h>
 
+// Pin definition 
+const byte interrupt_pin = 15; // pin D8
 
-
-const byte interrupt_pin = 13;
+// Interrupt variables
 volatile byte interrupt_status = 0;
 static int num_of_interrupts = 0;
+byte mpuIntStatus = 0;
 
-WiFiClient espClient;
 
 MPU6050 mpu;
-uint8_t devStatus;
+byte devStatus;
+VectorInt16 aa;  
+
+
+//ESP Wifi initialization
+WiFiClient espClient;
+WiFiUDP Udp; 
+const IPAddress outIp(192, 168, 1, 11); 
+const unsigned int outPort = 9999;
+
+
+void reset_offsets()
+{
+  // Zeroing Gyro and Arduino values
+  mpu.setXGyroOffset(0);
+  mpu.setYGyroOffset(0);
+  mpu.setZGyroOffset(0);
+  mpu.setXAccelOffset(0);
+  mpu.setYAccelOffset(0);
+  mpu.setZAccelOffset(0);
+}
+
+void supplyOffsets()
+{
+  //supply your own gyro offsets here, scaled for min sensitivity
+  mpu.setXGyroOffset(220);
+  mpu.setYGyroOffset(76);
+  mpu.setZGyroOffset(-85);
+  mpu.setZAccelOffset(1788);
+}
+
 
 void handle_interrupt() {
   interrupt_status++;
   num_of_interrupts++; 
 }
 
-void setup() {
-  Serial.begin(115200);
+
+
+bool setupInterrupt()
+{
   pinMode(interrupt_pin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interrupt_pin),handle_interrupt, RISING);
-  
+  return mpu.getIntStatus();
+}
+void setup_mpu()
+{
+	
+}
+
+void setup() {
+
+  Serial.begin(115200);
+  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+
+  //packetSize = mpu.dmpGetFIFOPacketSize();
 
   devStatus = mpu.dmpInitialize();
-  
-  // supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setXGyroOffset(220);
-  mpu.setYGyroOffset(76);
-  mpu.setZGyroOffset(-85);
-  mpu.setZAccelOffset(1788); 
+  if (!devStatus) 
+  {
+  	//enable DMP
+  	mpu.setDMPEnabled(true);
+  	mpuIntStatus = setupInterrupt();
 
-
-
-   // make sure it worked (returns 0 if so)
-if (devStatus == 0) {
-	// turn on the DMP, now that it's ready
-    Serial.println(F("Enabling DMP..."));
-    mpu.setDMPEnabled(true);
-
-	// enable Arduino interrupt detection
-	Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-
-    Serial.println(F(")..."));
-
-    mpuIntStatus = mpu.getIntStatus();
-
-        // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    } else {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-    }
+  }
 }
 
 void loop() {
