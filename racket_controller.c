@@ -3,6 +3,10 @@
 #include "MPU6050_6Axis_MotionApps20.h"
 #include <ESP8266WiFi.h>
 
+#define AZ_OFFSET 16384
+#define GYRO_DEADZONE 1
+#define ACCEL_DEADZONE 8
+
 struct offsets{
 	int ax_offset;
 	int ay_offset;
@@ -57,7 +61,7 @@ void reset_offsets()
   mpu.setZAccelOffset(0);
 }
 
-void supplyOffsets()
+void setOffsets()
 {
   mpu.setXGyroOffset(offsets.gx_offset);
   mpu.setYGyroOffset(offsets.gy_offset);
@@ -67,7 +71,8 @@ void supplyOffsets()
   mpu.setZAccelOffset(offsets.az_offset);
 }
 
-void meansensors(){
+void meansensors()
+{
   int i = 0;
   long buff_ax = 0, buff_ay = 0, buff_az = 0, buff_gx = 0, buff_gy = 0, buff_gz = 0;
 
@@ -87,7 +92,7 @@ void meansensors(){
 
     delay(2);
   }
-  
+
   means.mean_ax= buff_ax/buffersize;
   means.mean_ay= buff_ay/buffersize;
   means.mean_az= buff_az/buffersize;
@@ -96,6 +101,55 @@ void meansensors(){
   means.mean_gz= buff_gz/buffersize;
 }
 
+void mpu_calibration()
+{ 
+	if (means.mean_ax != 0) {
+  	offsets.ax_offset = -1*(means.mean_ax/8);
+  	offsets.ay_offset = -1*(means.mean_ay/8);
+  	offsets.az_offset = (AZ_OFFSET - mean_az)/8;
+
+  	offsets.gx_offset = -1*(means.mean_gx/4);
+  	offsets.gy_offset = -1*(means.mean_gy/4);
+  	offsets.gz_offset = -1*(means.mean_gz/4);
+	}
+	while (true) {
+
+    int ready=0;
+    
+    setOffsets();
+    meansensors();
+
+    if (abs(means.mean_ax) <= ACCEL_DEADZONE) 
+      ready++;
+    else 
+      offsets.ax_offset = offsets.ax_offset - means.mean_ax/ACCEL_DEADZONE;
+
+    if (abs(means.mean_ay) <= ACCEL_DEADZONE)
+      ready++;
+    else 
+      offsets.ay_offset = offsets.ay_offset-means.mean_ay/ACCEL_DEADZONE;
+
+    if (abs(AZ_OFFSET-means.mean_az) <= ACCEL_DEADZONE) 
+      ready++;
+    else 
+      offsets.az_offset = offsets.az_offset+(AZ_OFFSET-means.mean_az)/ACCEL_DEADZONE;
+
+    if (abs(means.mean_gx) <= GYRO_DEADZONE) 
+      ready++;
+    else 
+      offsets.gx_offset = offsets.gx_offset-means.mean_gx/(GYRO_DEADZONE + 1);
+
+    if (abs(means.mean_gy) <= GYRO_DEADZONE)
+      ready++;
+    else 
+      offsets.gy_offset = offsets.gy_offset-means.mean_gy/(GYRO_DEADZONE + 1);
+
+    if (abs(means.mean_gz) <= GYRO_DEADZONE) ready++;
+    else offsets.gz_offset = offsets.gz_offset - means.mean_gz/(GYRO_DEADZONE + 1);
+
+    if (ready==6) break;
+  }
+}
 
 void handle_interrupt() {
   interrupt_status++;
@@ -113,12 +167,10 @@ void setup_mpu()
 {
 	Wire.begin();
 	Wire.setClock(400000);
-
+	clear_buffer();
 	mpu.initialize();
 
 	reset_offsets();
-
-	devStatus = ;
 
 	if (0 != (devStatus = mpu.dmpInitialize()))
 	{
@@ -126,13 +178,13 @@ void setup_mpu()
 		Serial.print(devStatus);
 		return;
 	}
-
 	mpu.setDMPEnabled(true);
 	mpu.dmpInitialize();
 	mpuIntStatus = setupInterrupt();
 	dmpReady = true;
 	packetSize = mpu.dmpGetFIFOPacketSize();
 	Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  meansensors();
 }
 
 void clear_buffer()
@@ -140,13 +192,18 @@ void clear_buffer()
 	while (Serial.available() && Serial.read());
 }
 
-void setup() {
-
+void setup()
+{
   Serial.begin(115200);
-
+  clear_buffer();
+  setup_mpu();
+  delay(100);
+  mpu_calibration();
+  delay(100);
 }
 
-void loop() {
+void loop()
+{
   while(!interrupt_status) {
     Serial.println("Interrupt");
     Serial.println("num_of_interrupts = ");
