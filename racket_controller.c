@@ -127,17 +127,17 @@ void mpu_calibration()
     if (abs(means.mean_ay) <= ACCEL_DEADZONE)
       ready++;
     else 
-      offsets.ay_offset = offsets.ay_offset-means.mean_ay/ACCEL_DEADZONE;
+      offsets.ay_offset = offsets.ay_offset - means.mean_ay/ACCEL_DEADZONE;
 
     if (abs(AZ_OFFSET-means.mean_az) <= ACCEL_DEADZONE) 
       ready++;
     else 
-      offsets.az_offset = offsets.az_offset+(AZ_OFFSET-means.mean_az)/ACCEL_DEADZONE;
+      offsets.az_offset = offsets.az_offset + (AZ_OFFSET-means.mean_az)/ACCEL_DEADZONE;
 
     if (abs(means.mean_gx) <= GYRO_DEADZONE) 
       ready++;
     else 
-      offsets.gx_offset = offsets.gx_offset-means.mean_gx/(GYRO_DEADZONE + 1);
+      offsets.gx_offset = offsets.gx_offset - means.mean_gx/(GYRO_DEADZONE + 1);
 
     if (abs(means.mean_gy) <= GYRO_DEADZONE)
       ready++;
@@ -149,6 +149,8 @@ void mpu_calibration()
 
     if (ready==6) break;
   }
+  
+  delay(1000);
 }
 
 void handle_interrupt() {
@@ -160,6 +162,7 @@ bool setupInterrupt()
 {
   pinMode(interrupt_pin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interrupt_pin),handle_interrupt, RISING);
+  delay(100);
   return mpu.getIntStatus();
 }
 
@@ -167,9 +170,9 @@ void setup_mpu()
 {
 	Wire.begin();
 	Wire.setClock(400000);
+
 	clear_buffer();
 	mpu.initialize();
-
 	reset_offsets();
 
 	if (0 != (devStatus = mpu.dmpInitialize()))
@@ -178,6 +181,7 @@ void setup_mpu()
 		Serial.print(devStatus);
 		return;
 	}
+
 	mpu.setDMPEnabled(true);
 	mpu.dmpInitialize();
 	mpuIntStatus = setupInterrupt();
@@ -185,6 +189,7 @@ void setup_mpu()
 	packetSize = mpu.dmpGetFIFOPacketSize();
 	Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   meansensors();
+  delay(1000);
 }
 
 void clear_buffer()
@@ -197,9 +202,8 @@ void setup()
   Serial.begin(115200);
   clear_buffer();
   setup_mpu();
-  delay(100);
   mpu_calibration();
-  delay(100);
+  
 }
 
 void loop()
