@@ -2,6 +2,10 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include <ESP8266WiFi.h>
+#include <DNSServer.h>
+#include <WiFiClient.h>
+#include <WiFiUdp.h>
+#include <WiFiManager.h>  
 
 #define AZ_OFFSET 16384
 #define GYRO_DEADZONE 1
@@ -29,7 +33,7 @@ struct means{
 const byte interrupt_pin = 15; // pin D8
 
 // Interrupt variables
-volatile byte interrupt_status = 0;
+volatile byte interrupt_flag = 0;
 static int num_of_interrupts = 0;
 byte mpuIntStatus = 0;
 
@@ -42,10 +46,11 @@ uint16_t packetSize;
 
 //ESP Wifi initialization
 WiFiClient espClient;
-WiFiUDP Udp; 
+WiFiUDP Udp;
+WiFiManager wifiManager; 
 const IPAddress outIp(192, 168, 1, 11); 
 const unsigned int outPort = 9999;
-
+char [] DEVICE_NAME = "ESP8266";
 
 struct offsets = {0};
 struct means = {0};
@@ -149,12 +154,12 @@ void mpu_calibration()
 
     if (ready==6) break;
   }
-  
+
   delay(1000);
 }
 
 void handle_interrupt() {
-  interrupt_status++;
+  interrupt_flag++;
   num_of_interrupts++; 
 }
 
@@ -196,22 +201,30 @@ void clear_buffer()
 {
 	while (Serial.available() && Serial.read());
 }
-
+void setup_wifi()
+{
+  wifiManager.resetSettings();
+  wifiManager.autoConnect(DEVICE_NAME);
+  Serial.print(F("WiFi connected! IP address: "));
+  Serial.println(WiFi.localIP());
+}
 void setup()
 {
   Serial.begin(115200);
   clear_buffer();
+  
+  setup_wifi();
+
   setup_mpu();
   mpu_calibration();
-  
 }
 
 void loop()
 {
-  while(!interrupt_status) {
+  while(!interrupt_flag) {
     Serial.println("Interrupt");
-    Serial.println("num_of_interrupts = ");
+    Serial.print(" - num_of_interrupts = ");
     Serial.print(num_of_interrupts);
   }
-  interrupt_status = 0;
+  interrupt_flag = 0;
 }
