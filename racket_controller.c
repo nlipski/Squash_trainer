@@ -50,7 +50,7 @@ WiFiUDP Udp;
 WiFiManager wifiManager; 
 const IPAddress outIp(192, 168, 1, 11); 
 const unsigned int outPort = 9999;
-char [] DEVICE_NAME = "ESP8266";
+const char DEVICE_NAME[] = "ESP8266_squash";
 
 struct offsets = {0};
 struct means = {0};
