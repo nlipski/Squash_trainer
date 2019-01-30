@@ -208,6 +208,14 @@ void setup_wifi()
   Serial.print(F("WiFi connected! IP address: "));
   Serial.println(WiFi.localIP());
 }
+
+void mpu_loop()
+{
+  if (!dmpReady) return;
+  if (!mpuInterrupt && fifoCount < packetSize) return;
+  
+}
+
 void setup()
 {
   Serial.begin(115200);
